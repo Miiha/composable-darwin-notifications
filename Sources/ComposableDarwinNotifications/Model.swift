@@ -12,6 +12,10 @@ public struct DarwinNotification: Equatable {
   public struct Name: Equatable {
     internal var rawValue: CFString
   }
+
+  public var value: String {
+    self.name.rawValue as String
+  }
 }
 
 extension DarwinNotification.Name {

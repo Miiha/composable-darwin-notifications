@@ -5,7 +5,7 @@ import Combine
 import ComposableArchitecture
 
 extension DarwinNotificationClient {
-  static var live: DarwinNotificationClient {
+  public static var live: DarwinNotificationClient {
     guard let center = CFNotificationCenterGetDarwinNotifyCenter() else {
       fatalError("Invalid CFNotificationCenter")
     }
