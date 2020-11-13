@@ -37,7 +37,6 @@ extension DarwinNotificationClient {
             dependencies[id] = observer
             subscribers[id] = subscriber
 
-
             let callback: CFNotificationCallback = { (center, observer, name, object, userInfo) in
               queue.async {
                 guard let cfName = name, let opaqueObserver = observer else {
@@ -74,6 +73,7 @@ extension DarwinNotificationClient {
               let observerPointer = Unmanaged.passUnretained(observer).toOpaque()
               CFNotificationCenterRemoveObserver(center, observerPointer, notificationName, nil)
               dependencies[id] = nil
+              subscribers[id] = nil
             }
           }
         }
