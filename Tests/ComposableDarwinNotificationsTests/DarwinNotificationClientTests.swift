@@ -1,3 +1,5 @@
+// Copyright © 2020 Michael Kao
+
 import XCTest
 import ComposableArchitecture
 import Combine
@@ -129,31 +131,40 @@ final class DarwinNotificationClientTests: XCTestCase {
     XCTAssertEqual(notifications2, [])
   }
 
-  // The cancellation is happening and the notification is being anobserved,
-  // but the observer is still called.
-  func xtestCancellation() {
+  func testCancellation() {
     let client = DarwinNotificationClient.live
     var notifications: [DarwinNotification] = []
+
+    let observeExpectation = XCTestExpectation()
+    observeExpectation.expectedFulfillmentCount = 1
 
     struct Id: Hashable {}
     let cancellable = client.observeNotification(Id(), "blob")
       .sink {
         notifications.append($0)
+        observeExpectation.fulfill()
       }
+
+    let firstPostExpectation = XCTestExpectation()
+    client.postNotification("blob")
+      .sink(receiveCompletion: { _ in
+        firstPostExpectation.fulfill()
+      }, receiveValue: { _ in })
+      .store(in: &cancellables)
+
+    _ = XCTWaiter.wait(for: [observeExpectation, firstPostExpectation], timeout: 1.0)
+
     cancellable.cancel()
 
-    let expectation = XCTestExpectation(description: "Timeout")
-    _ = XCTWaiter.wait(for: [expectation], timeout: 1.0)
+    let secondPostExpectation = XCTestExpectation()
+    client.postNotification("blob")
+      .sink(receiveCompletion: { _ in
+        secondPostExpectation.fulfill()
+      }, receiveValue: { _ in })
+      .store(in: &cancellables)
 
-    let cfNotificationCenter = CFNotificationCenterGetDarwinNotifyCenter()!
-    CFNotificationCenterPostNotification(
-      cfNotificationCenter,
-      CFNotificationName(rawValue: DarwinNotification.Name("blob").rawValue),
-      nil,
-      nil,
-      false
-    )
-
-    XCTAssertEqual(notifications, [])
+    let secondObserverExpectation = XCTestExpectation()
+    _ = XCTWaiter.wait(for: [secondPostExpectation, secondObserverExpectation], timeout: 1.0)
+    XCTAssertEqual(notifications, [DarwinNotification("blob")])
   }
 }

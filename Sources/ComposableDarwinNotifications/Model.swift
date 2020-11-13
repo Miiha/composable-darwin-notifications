@@ -1,9 +1,4 @@
-//
-//  File.swift
-//  
-//
-//  Created by Michael Kao on 11.11.20.
-//
+// Copyright © 2020 Michael Kao
 
 import Foundation
 

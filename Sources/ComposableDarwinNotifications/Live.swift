@@ -1,9 +1,4 @@
-//
-//  File.swift
-//  
-//
-//  Created by Michael Kao on 09.11.20.
-//
+// Copyright © 2020 Michael Kao
 
 import Foundation
 import Combine
@@ -73,10 +68,11 @@ extension DarwinNotificationClient {
               guard let center = CFNotificationCenterGetDarwinNotifyCenter() else {
                 fatalError("Invalid CFNotificationCenter")
               }
-              guard var observer = dependencies[id] else { return }
+              guard let observer = dependencies[id] else { return }
 
               let notificationName = CFNotificationName(rawValue: name.rawValue)
-              CFNotificationCenterRemoveObserver(center, &observer, notificationName, nil)
+              let observerPointer = Unmanaged.passUnretained(observer).toOpaque()
+              CFNotificationCenterRemoveObserver(center, observerPointer, notificationName, nil)
               dependencies[id] = nil
             }
           }
