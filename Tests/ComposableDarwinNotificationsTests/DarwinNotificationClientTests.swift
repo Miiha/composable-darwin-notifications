@@ -8,51 +8,40 @@ import Combine
 final class DarwinNotificationClientTests: XCTestCase {
   var cancellables = Set<AnyCancellable>()
 
-  func testExample() {
+  func testObservation() {
     let client = DarwinNotificationClient.live
     var notifications: [DarwinNotification] = []
 
-    let observeExpectation = XCTestExpectation()
-    observeExpectation.expectedFulfillmentCount = 2
-
+    let observerExpectation = XCTestExpectation()
     struct Id: Hashable {}
     client.observeNotification(Id(), "blob")
-      .sink {
-        notifications.append($0)
-        observeExpectation.fulfill()
-      }
+      .sink { notifications.append($0); observerExpectation.fulfill() }
       .store(in: &cancellables)
 
-    let firstPostExpectation = XCTestExpectation()
+    let postExpectation = XCTestExpectation()
+    postExpectation.expectedFulfillmentCount = 3
+
     client.postNotification("blob")
       .sink(receiveCompletion: { _ in
-        firstPostExpectation.fulfill()
+        postExpectation.fulfill()
       }, receiveValue: { _ in })
       .store(in: &cancellables)
 
-    let secondPostExpectation = XCTestExpectation()
     client.postNotification("blob")
       .sink(receiveCompletion: { _ in
-        secondPostExpectation.fulfill()
+        postExpectation.fulfill()
       }, receiveValue: { _ in })
       .store(in: &cancellables)
 
-    let thirdPostExpectation = XCTestExpectation()
     client.postNotification("bar")
       .sink(receiveCompletion: { _ in
-        thirdPostExpectation.fulfill()
+        postExpectation.fulfill()
       }, receiveValue: { _ in })
       .store(in: &cancellables)
 
-    _ = XCTWaiter.wait(for: [firstPostExpectation, secondPostExpectation, thirdPostExpectation, observeExpectation], timeout: 3.0)
+    _ = XCTWaiter.wait(for: [postExpectation, observerExpectation], timeout: 1.0)
 
-    XCTAssertEqual(
-      notifications,
-      [
-        DarwinNotification("blob"),
-        DarwinNotification("blob")
-      ]
-    )
+    XCTAssertEqual(notifications, [DarwinNotification("blob"), DarwinNotification("blob")])
   }
 
   func testTwoObservers() {
@@ -60,26 +49,16 @@ final class DarwinNotificationClientTests: XCTestCase {
     var notifications1: [DarwinNotification] = []
     var notifications2: [DarwinNotification] = []
 
-    let observeExpectation1 = XCTestExpectation()
-    observeExpectation1.expectedFulfillmentCount = 1
-
+    let firstObserverExpectation = XCTestExpectation()
     struct Id1: Hashable {}
     client.observeNotification(Id1(), "blob")
-      .sink {
-        notifications1.append($0)
-        observeExpectation1.fulfill()
-      }
+      .sink { notifications1.append($0); firstObserverExpectation.fulfill() }
       .store(in: &cancellables)
 
-    let observeExpectation2 = XCTestExpectation()
-    observeExpectation2.expectedFulfillmentCount = 2
-
+    let secondObserverExpectation = XCTestExpectation()
     struct Id2: Hashable {}
     client.observeNotification(Id2(), "blob")
-      .sink {
-        notifications2.append($0)
-        observeExpectation2.fulfill()
-      }
+      .sink { notifications2.append($0); secondObserverExpectation.fulfill() }
       .store(in: &cancellables)
 
     let postExpectation = XCTestExpectation()
@@ -89,7 +68,7 @@ final class DarwinNotificationClientTests: XCTestCase {
       }, receiveValue: { _ in })
       .store(in: &cancellables)
 
-    _ = XCTWaiter.wait(for: [observeExpectation1, observeExpectation2, postExpectation], timeout: 3.0)
+    _ = XCTWaiter.wait(for: [postExpectation, firstObserverExpectation, secondObserverExpectation], timeout: 1.0)
 
     XCTAssertEqual(notifications1, [DarwinNotification("blob")])
     XCTAssertEqual(notifications2, [DarwinNotification("blob")])
@@ -100,22 +79,16 @@ final class DarwinNotificationClientTests: XCTestCase {
     var notifications1: [DarwinNotification] = []
     var notifications2: [DarwinNotification] = []
 
-    let observeExpectation1 = XCTestExpectation()
-    observeExpectation1.expectedFulfillmentCount = 1
-
+    let firstObserverExpectation = XCTestExpectation()
     struct Id1: Hashable {}
     client.observeNotification(Id1(), "blob")
-      .sink {
-        notifications1.append($0)
-        observeExpectation1.fulfill()
-      }
+      .sink { notifications1.append($0); firstObserverExpectation.fulfill() }
       .store(in: &cancellables)
 
+    let secondObserverExpectation = XCTestExpectation()
     struct Id2: Hashable {}
     client.observeNotification(Id2(), "blobbo")
-      .sink {
-        notifications2.append($0)
-      }
+      .sink { notifications2.append($0); secondObserverExpectation.fulfill() }
       .store(in: &cancellables)
 
     let postExpectation = XCTestExpectation()
@@ -125,7 +98,7 @@ final class DarwinNotificationClientTests: XCTestCase {
       }, receiveValue: { _ in })
       .store(in: &cancellables)
 
-    _ = XCTWaiter.wait(for: [observeExpectation1, postExpectation], timeout: 3.0)
+    _ = XCTWaiter.wait(for: [postExpectation, firstObserverExpectation, secondObserverExpectation], timeout: 1.0)
 
     XCTAssertEqual(notifications1, [DarwinNotification("blob")])
     XCTAssertEqual(notifications2, [])
@@ -135,15 +108,9 @@ final class DarwinNotificationClientTests: XCTestCase {
     let client = DarwinNotificationClient.live
     var notifications: [DarwinNotification] = []
 
-    let observeExpectation = XCTestExpectation()
-    observeExpectation.expectedFulfillmentCount = 1
-
     struct Id: Hashable {}
     let cancellable = client.observeNotification(Id(), "blob")
-      .sink {
-        notifications.append($0)
-        observeExpectation.fulfill()
-      }
+      .sink { notifications.append($0) }
 
     let firstPostExpectation = XCTestExpectation()
     client.postNotification("blob")
@@ -152,7 +119,7 @@ final class DarwinNotificationClientTests: XCTestCase {
       }, receiveValue: { _ in })
       .store(in: &cancellables)
 
-    _ = XCTWaiter.wait(for: [observeExpectation, firstPostExpectation], timeout: 1.0)
+    _ = XCTWaiter.wait(for: [firstPostExpectation], timeout: 1.0)
 
     cancellable.cancel()
 
@@ -163,8 +130,7 @@ final class DarwinNotificationClientTests: XCTestCase {
       }, receiveValue: { _ in })
       .store(in: &cancellables)
 
-    let secondObserverExpectation = XCTestExpectation()
-    _ = XCTWaiter.wait(for: [secondPostExpectation, secondObserverExpectation], timeout: 1.0)
+    _ = XCTWaiter.wait(for: [secondPostExpectation], timeout: 1.0)
     XCTAssertEqual(notifications, [DarwinNotification("blob")])
   }
 }

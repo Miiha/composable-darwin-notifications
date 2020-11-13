@@ -6,77 +6,74 @@ import ComposableArchitecture
 
 extension DarwinNotificationClient {
   static var live: DarwinNotificationClient {
-    DarwinNotificationClient(
+    guard let center = CFNotificationCenterGetDarwinNotifyCenter() else {
+      fatalError("Invalid CFNotificationCenter")
+    }
+
+    return Self(
       postNotification: { name in
         Effect.fireAndForget {
-          queue.async {
-            guard let cfNotificationCenter = CFNotificationCenterGetDarwinNotifyCenter() else {
-              fatalError("Invalid CFNotificationCenter")
-            }
-            CFNotificationCenterPostNotification(
-              cfNotificationCenter,
-              CFNotificationName(rawValue: name.rawValue),
-              nil,
-              nil,
-              false
-            )
-          }
+          CFNotificationCenterPostNotification(
+            center,
+            CFNotificationName(rawValue: name.rawValue),
+            nil,
+            nil,
+            false
+          )
         }
+        .subscribe(on: queue.eraseToAnyScheduler())
+        .eraseToEffect()
       },
       observeNotification: { id, name in
         Effect.run { subscriber in
-          queue.async {
-            guard let cfNotificationCenter = CFNotificationCenterGetDarwinNotifyCenter() else {
-              fatalError("Invalid CFNotificationCenter")
-            }
+          let observer = Observer(
+            id: id,
+            name: name
+          )
+          dependencies[id] = observer
+          subscribers[id] = subscriber
 
-            let observer = Observer(
-              id: id,
-              name: name
-            )
-            dependencies[id] = observer
-            subscribers[id] = subscriber
-
-            let callback: CFNotificationCallback = { (center, observer, name, object, userInfo) in
-              queue.async {
-                guard let cfName = name, let opaqueObserver = observer else {
-                  return
-                }
-
-                let observer = Unmanaged<Observer>.fromOpaque(opaqueObserver).takeUnretainedValue()
-                guard let subscriber = subscribers[observer.id] else { return }
-                let notificationName = DarwinNotification.Name(cfName)
-                let notification = DarwinNotification(notificationName)
-
-                subscriber.send(notification)
-              }
-            }
-
-            let observerPointer = Unmanaged.passUnretained(observer).toOpaque()
-            CFNotificationCenterAddObserver(
-              cfNotificationCenter,
-              observerPointer,
-              callback,
-              name.rawValue,
-              nil,
-              .coalesce
-            )
-          }
-          return AnyCancellable {
+          let callback: CFNotificationCallback = { (center, observer, name, object, userInfo) in
             queue.async {
-              guard let center = CFNotificationCenterGetDarwinNotifyCenter() else {
-                fatalError("Invalid CFNotificationCenter")
+              guard let cfName = name, let opaqueObserver = observer else {
+                return
               }
-              guard let observer = dependencies[id] else { return }
 
-              let notificationName = CFNotificationName(rawValue: name.rawValue)
-              let observerPointer = Unmanaged.passUnretained(observer).toOpaque()
-              CFNotificationCenterRemoveObserver(center, observerPointer, notificationName, nil)
-              dependencies[id] = nil
-              subscribers[id] = nil
+              let observer = Unmanaged<Observer>.fromOpaque(opaqueObserver).takeUnretainedValue()
+              guard let subscriber = subscribers[observer.id] else { return }
+              let notificationName = DarwinNotification.Name(cfName)
+              let notification = DarwinNotification(notificationName)
+
+              subscriber.send(notification)
             }
+          }
+
+          let observerPointer = Unmanaged.passUnretained(observer).toOpaque()
+          CFNotificationCenterAddObserver(
+            center,
+            observerPointer,
+            callback,
+            name.rawValue,
+            nil,
+            .coalesce
+          )
+          return AnyCancellable {
+            guard let observer = dependencies[id] else { return }
+
+            let notificationName = CFNotificationName(rawValue: name.rawValue)
+            let observerPointer = Unmanaged.passUnretained(observer).toOpaque()
+            CFNotificationCenterRemoveObserver(
+              center,
+              observerPointer,
+              notificationName,
+              nil
+            )
+            dependencies[id] = nil
+            subscribers[id] = nil
           }
         }
+        .subscribe(on: queue.eraseToAnyScheduler())
+        .eraseToEffect()
       }
     )
   }
